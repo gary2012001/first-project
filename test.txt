@@ -5,5 +5,5 @@
 15:03 git tracks changes.
 15:04 git tracks changes two.
 16:22 git brach test
-16:29 conflict and fixed
+16:29 ctestonflict and fixed
 
