@@ -87,7 +87,6 @@ private:
     wxMenuBar      *m_menuBar;
 
     wxString filename;
-    wxFile filesend;
 
     bool fixframe_enable = 0;
     unsigned int player_speed = 0;
@@ -95,7 +94,6 @@ private:
     unsigned int countstart = 0;
     unsigned int countend = 20000;
     unsigned int frame_count = 0;
-    bool sendstatus = 0;
 
 
     LARGE_INTEGER timefreqence;
@@ -213,15 +211,14 @@ MyFrame::~MyFrame()
 void MyFrame::OnServerStart(wxCommandEvent& WXUNUSED(event))
 {
     // Create the address - defaults to localhost
-
+/*
     wxFileDialog dialogOpen( this, wxT("Please choose an model parameter file"),
                              wxEmptyString, wxEmptyString, wxT("*.raw"), wxFD_OPEN);
     if (dialogOpen.ShowModal() == wxID_OK)
     {
         filename = dialogOpen.GetPath();
     }
-
-
+*/
     static bool server_start = 1;
 
     if(server_start == 1)
@@ -310,7 +307,7 @@ void MyFrame::OnParaFixfrm(wxCommandEvent& WXUNUSED(event))
         {
             fixframe_enable = 0;
             int j=0,counttemp1=0,counttemp2=0;
-            for(int i = 0; i<(int)str.length(); i++)
+            for(int i = 0; i<str.length(); i++)
             {
                 if((data[i] == 44))
                 {
@@ -403,26 +400,11 @@ void MyFrame::OnSocketEvent(wxSocketEvent& event)
     // Process the event
     switch(event.GetSocketEvent())
     {
-    case wxSOCKET_CONNECTION:
-    {
-        sendstatus = 0;
-        /*
-        if (filesend.IsOpened())
-        {
-            filesend.Close();
-        }*/
-        wxFile filesend(filename,wxFile::read);
-        if (!filesend.IsOpened())
-        {
-            m_text->AppendText(_("File open fail\n"));
-        }
-        sendstatus = 1;
-        break;
-    }
     case wxSOCKET_INPUT:
     {
         char buf[10];
         char* sendbuf;
+        unsigned long long filelength;
 
         // Read the data
         sock->Read(buf, sizeof(buf));
@@ -435,42 +417,50 @@ void MyFrame::OnSocketEvent(wxSocketEvent& event)
         }
         else
         {
-            if(sendstatus == 1)
+            LARGE_INTEGER timenow= {0};
+            QueryPerformanceCounter(&timenow);
+            double times=( ((timenow.QuadPart -
+                             timestart.QuadPart)*1000000)/(double)timefreqence.QuadPart);
+            timestart = timenow;
+
+            wxString numb = wxString::Format(wxT("Frame count:%i Send time:%f ms"),frame_count,times/1000);
+            m_text->AppendText(wxString(_("")) + numb + _("\n"));
+
+            sendbuf =(char *) malloc(2*1024*1024);
+            if(frame_count > countend)
             {
-                LARGE_INTEGER timenow= {0};
-                QueryPerformanceCounter(&timenow);
-                double times=( ((timenow.QuadPart -
-                                 timestart.QuadPart)*1000000)/(double)timefreqence.QuadPart);
-                timestart = timenow;
-
-                wxString numb = wxString::Format(wxT("Frame count:%i Send time:%f ms"),frame_count,times/1000);
-                m_text->AppendText(wxString(_("")) + numb + _("\n"));
-
-                sendbuf =(char *) malloc(2*1024*1024);
-                if(frame_count > countend)
-                {
-                    frame_count = countstart;
-                }
-                filesend.Seek(sendlength);
-                filesend.Read(sendbuf,sendlength);
-                sock->Write(sendbuf,sendlength);
-                frame_count++;
-                //sock->Write(sendbuf,2);
-                Sleep(player_speed);
-                if(frame_count*sendlength>=filesend.Length())
-                    frame_count = countstart;
-                free(sendbuf);
+                frame_count = countstart;
             }
+            char tempfile[64];
+            strcpy(tempfile,filename.mb_str());
+            FILE* file1=fopen(tempfile,"r");
+            
+            wxFile file(filename,wxFile::read);
+            if (!file.IsOpened())
+            {
+                m_text->AppendText(_("File open fail\n"));
+            }
+            file.Seek(sendlength*frame_count);
+            file.Read(sendbuf,sendlength);
+            _fseeki64(file1,0,2);
+            filelength = _ftelli64(file1);
+            _fseeki64(file1,(long long)(sendlength*frame_count),SEEK_SET);
+            fread(sendbuf,sendlength,1,file1);
+            sock->Write(sendbuf,sendlength);
+            frame_count++;
+            //sock->Write(sendbuf,2);
+            Sleep(player_speed);
+            if((frame_count*sendlength)>=filelength)
+                frame_count = countstart;
+            file.Close();
+            fclose(file1);
+            free(sendbuf);
         }
         break;
     }
     case wxSOCKET_LOST:
     {
         sock->Destroy();
-        break;
-    }
-    case wxSOCKET_OUTPUT:
-    {
         break;
     }
     }
@@ -505,15 +495,6 @@ void MyFrame::OnSocketEvent_cmd(wxSocketEvent& event)
         sock->Destroy();
         break;
     }
-    case wxSOCKET_OUTPUT:
-    {
-        break;
-    }
-    case wxSOCKET_CONNECTION:
-    {
-        break;
-    }
-
     }
 }
 
