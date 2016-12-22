@@ -414,6 +414,7 @@ void MyFrame::OnSocketEvent(wxSocketEvent& event)
             //wxString numb = wxString::Format(wxT("%i"),buf[0]);
             //m_text->AppendText(wxString(_("Receive from client: ")) + numb + _("\n"));
             sock->Write(buf, 2);
+
         }
         else
         {
@@ -434,7 +435,7 @@ void MyFrame::OnSocketEvent(wxSocketEvent& event)
             char tempfile[64];
             strcpy(tempfile,filename.mb_str());
             FILE* file1=fopen(tempfile,"r");
-            
+
             wxFile file(filename,wxFile::read);
             if (!file.IsOpened())
             {
